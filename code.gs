@@ -163,21 +163,22 @@ function getIssuesForEpics2025() {
     
     const searchUrl = `${JIRA_DOMAIN}/rest/api/3/search`;
     
+    // Use POST method like the first function for consistency
     const options = {
-      method: "get",
+      method: "post",
       contentType: "application/json",
       headers: {
         "Authorization": "Basic " + Utilities.base64Encode(`${EMAIL}:${API_TOKEN}`)
-      }
+      },
+      payload: JSON.stringify({
+        jql: jqlQuery,
+        maxResults: 1000,
+        fields: ["summary", "key", "status", "resolutiondate", "customfield_10016", "customfield_10020", "parent"]
+      })
     };
-
-    // Fetch fields: summary, key, status, resolutiondate, customfield_10016 (story points), 
-    // customfield_10020 (sprint), parent (epic)
-    const fields = "summary,key,status,resolutiondate,customfield_10016,customfield_10020,parent";
-    const url = `${searchUrl}?jql=${encodeURIComponent(jqlQuery)}&maxResults=1000&fields=${fields}`;
     
     try {
-      const response = UrlFetchApp.fetch(url, options);
+      const response = UrlFetchApp.fetch(searchUrl, options);
       const responseText = response.getContentText();
       const data = JSON.parse(responseText);
       
@@ -185,8 +186,19 @@ function getIssuesForEpics2025() {
         Logger.log(`Jira API error for epic ${epicKey}: ${data.errorMessages.join(", ")}`);
         // Try alternative query with "Epic Link"
         jqlQuery = `"Epic Link" = ${epicKey} AND statusCategory = Done AND resolutiondate >= 2025-01-01 AND resolutiondate < 2026-01-01`;
-        const altUrl = `${searchUrl}?jql=${encodeURIComponent(jqlQuery)}&maxResults=1000&fields=${fields}`;
-        const altResponse = UrlFetchApp.fetch(altUrl, options);
+        const altOptions = {
+          method: "post",
+          contentType: "application/json",
+          headers: {
+            "Authorization": "Basic " + Utilities.base64Encode(`${EMAIL}:${API_TOKEN}`)
+          },
+          payload: JSON.stringify({
+            jql: jqlQuery,
+            maxResults: 1000,
+            fields: ["summary", "key", "status", "resolutiondate", "customfield_10016", "customfield_10020", "parent"]
+          })
+        };
+        const altResponse = UrlFetchApp.fetch(searchUrl, altOptions);
         const altData = JSON.parse(altResponse.getContentText());
         if (altData.errorMessages) {
           Logger.log(`Alternative query also failed for epic ${epicKey}: ${altData.errorMessages.join(", ")}`);
