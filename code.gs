@@ -1,8 +1,15 @@
 function getMaestrosEpics2025() {
-
-  const JIRA_DOMAIN = "https://taxfix.atlassian.net";
-  const EMAIL = "lucas.massuh-external@taxfix.de";
-  const API_TOKEN = "YOUR_API_TOKEN_HERE"; // <--- add your Atlassian API token
+  // Load configuration from PropertiesService
+  // Set these using: PropertiesService.getScriptProperties().setProperty('JIRA_DOMAIN', 'https://taxfix.atlassian.net')
+  const props = PropertiesService.getScriptProperties();
+  const JIRA_DOMAIN = props.getProperty('JIRA_DOMAIN') || "https://taxfix.atlassian.net";
+  const EMAIL = props.getProperty('EMAIL') || "lucas.massuh-external@taxfix.de";
+  const API_TOKEN = props.getProperty('API_TOKEN');
+  
+  if (!API_TOKEN) {
+    SpreadsheetApp.getUi().alert("Error: API_TOKEN not set. Please set it in PropertiesService.");
+    return;
+  }
 
   // JQL for done issues in 2025 for project MKS
   const jqlQuery = `
