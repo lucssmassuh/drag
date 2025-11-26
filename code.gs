@@ -157,8 +157,9 @@ function getIssuesForEpics2025() {
     const epicKey = epicKeys[i];
     const epicName = epicMap[epicKey] || "";
     
-    // JQL to get all issues in this epic that are done in 2025
-    const jqlQuery = `"Epic Link" = ${epicKey} AND statusCategory = Done AND resolutiondate >= 2025-01-01 AND resolutiondate < 2026-01-01`;
+    // Try different JQL approaches - use parent field since we know issues have parent epics
+    // First try: parent = epicKey
+    let jqlQuery = `parent = ${epicKey} AND statusCategory = Done AND resolutiondate >= 2025-01-01 AND resolutiondate < 2026-01-01`;
     
     const searchUrl = `${JIRA_DOMAIN}/rest/api/3/search`;
     
@@ -177,8 +178,25 @@ function getIssuesForEpics2025() {
     
     try {
       const response = UrlFetchApp.fetch(url, options);
-      const data = JSON.parse(response.getContentText());
+      const responseText = response.getContentText();
+      const data = JSON.parse(responseText);
+      
+      if (data.errorMessages) {
+        Logger.log(`Jira API error for epic ${epicKey}: ${data.errorMessages.join(", ")}`);
+        // Try alternative query with "Epic Link"
+        jqlQuery = `"Epic Link" = ${epicKey} AND statusCategory = Done AND resolutiondate >= 2025-01-01 AND resolutiondate < 2026-01-01`;
+        const altUrl = `${searchUrl}?jql=${encodeURIComponent(jqlQuery)}&maxResults=1000&fields=${fields}`;
+        const altResponse = UrlFetchApp.fetch(altUrl, options);
+        const altData = JSON.parse(altResponse.getContentText());
+        if (altData.errorMessages) {
+          Logger.log(`Alternative query also failed for epic ${epicKey}: ${altData.errorMessages.join(", ")}`);
+          continue;
+        }
+        data.issues = altData.issues || [];
+      }
+      
       const issues = data.issues || [];
+      Logger.log(`Found ${issues.length} issues for epic ${epicKey}`);
 
       // Write each issue to the sheet
       issues.forEach(issue => {
@@ -214,6 +232,8 @@ function getIssuesForEpics2025() {
       });
     } catch (error) {
       Logger.log(`Error fetching issues for epic ${epicKey}: ${error.toString()}`);
+      // Show error in UI for debugging
+      SpreadsheetApp.getUi().alert(`Error for epic ${epicKey}: ${error.toString()}`);
     }
   }
 
