@@ -195,7 +195,7 @@ function getIssuesForEpics2025() {
           payload: JSON.stringify({
             jql: jqlQuery,
             maxResults: 1000,
-            fields: ["summary", "key", "status", "resolutiondate", "customfield_10016", "customfield_10020", "parent"]
+            fields: ["summary", "key", "status", "resolutiondate", "storyPoints", "customfield_10016", "customfield_10020", "customfield_10021", "parent"]
           })
         };
         const altResponse = UrlFetchApp.fetch(searchUrl, altOptions);
@@ -212,14 +212,32 @@ function getIssuesForEpics2025() {
 
       // Write each issue to the sheet
       issues.forEach(issue => {
-        // Extract story points (customfield_10016)
-        const storyPoints = issue.fields.customfield_10016 || "";
+        // Extract story points - try multiple possible field names
+        let storyPoints = "";
+        if (issue.fields.storyPoints !== undefined && issue.fields.storyPoints !== null) {
+          storyPoints = issue.fields.storyPoints;
+        } else if (issue.fields.customfield_10016 !== undefined && issue.fields.customfield_10016 !== null) {
+          storyPoints = issue.fields.customfield_10016;
+        } else if (issue.fields.customfield_10020 !== undefined && issue.fields.customfield_10020 !== null) {
+          // Sometimes story points are in 10020, but check if it's a number
+          const value = issue.fields.customfield_10020;
+          if (typeof value === 'number') {
+            storyPoints = value;
+          }
+        }
+        // Convert to string/empty if still not found
+        storyPoints = storyPoints !== "" && storyPoints !== null && storyPoints !== undefined ? storyPoints : "";
         
-        // Extract sprint (customfield_10020 is usually an array)
+        // Extract sprint (customfield_10020 is usually an array, but might be story points)
+        // Try to find sprint in other common fields
         let sprintName = "";
-        if (issue.fields.customfield_10020 && issue.fields.customfield_10020.length > 0) {
+        if (issue.fields.customfield_10020 && Array.isArray(issue.fields.customfield_10020) && issue.fields.customfield_10020.length > 0) {
           // Get the last sprint (most recent)
           const lastSprint = issue.fields.customfield_10020[issue.fields.customfield_10020.length - 1];
+          sprintName = lastSprint.name || "";
+        } else if (issue.fields.customfield_10021 && Array.isArray(issue.fields.customfield_10021) && issue.fields.customfield_10021.length > 0) {
+          // Try alternative sprint field
+          const lastSprint = issue.fields.customfield_10021[issue.fields.customfield_10021.length - 1];
           sprintName = lastSprint.name || "";
         }
         
