@@ -48,17 +48,26 @@ function getMaestrosEpics2025() {
     getIssue(epicKey, JIRA_DOMAIN, EMAIL, API_TOKEN)
   );
 
-  // Write to sheet
-  const sheet = SpreadsheetApp.getActiveSheet();
+  // Write to sheet - rename to "Epics" if needed
+  let sheet = SpreadsheetApp.getActiveSheet();
+  const sheetName = sheet.getName();
+  if (sheetName !== "Epics") {
+    sheet.setName("Epics");
+  }
   sheet.clear();
-  sheet.appendRow(["ID", "Epic Link", "Epic Key", "Summary"]);
+  
+  // Headers: ID, Epic Link, Epic Key, Summary, (empty), (empty), Type
+  sheet.appendRow(["ID", "Epic Link", "Epic Key", "Summary", "", "", "Type"]);
 
   epicDetails.forEach(epic => {
     sheet.appendRow([
       epic.id,
       `${JIRA_DOMAIN}/browse/${epic.key}`,
       epic.key,
-      epic.fields.summary
+      epic.fields.summary,
+      "",
+      "",
+      epic.fields.issuetype ? epic.fields.issuetype.name : ""
     ]);
   });
 
@@ -119,21 +128,34 @@ function getIssuesForEpics2025() {
     issuesSheet.clear();
   }
 
-  // Set headers
+  // Set headers: A-ID, B-Name, C-Epic, D-Epic Key, E-Points, F-Done Date, G-Sprint, H-Type
   issuesSheet.appendRow([
-    "Issue Key",
-    "Issue Link",
+    "ID",
+    "Name",
+    "Epic",
     "Epic Key",
-    "Summary",
-    "Status",
-    "Resolution Date"
+    "Points",
+    "Done Date",
+    "Sprint",
+    "Type"
   ]);
 
+  // Create a map of epic keys to epic names from the Epics sheet
+  const epicData = epicsSheet.getRange(2, 3, lastRow - 1, 2).getValues(); // Epic Key (col 3) and Summary (col 4)
+  const epicMap = {};
+  epicData.forEach(row => {
+    if (row[0]) {
+      epicMap[row[0]] = row[1] || ""; // epic key -> epic name
+    }
+  });
+
   let totalIssues = 0;
+  let rowNumber = 2; // Start after header row
 
   // Process each epic one by one
   for (let i = 0; i < epicKeys.length; i++) {
     const epicKey = epicKeys[i];
+    const epicName = epicMap[epicKey] || "";
     
     // JQL to get all issues in this epic that are done in 2025
     const jqlQuery = `"Epic Link" = ${epicKey} AND statusCategory = Done AND resolutiondate >= 2025-01-01 AND resolutiondate < 2026-01-01`;
@@ -148,7 +170,10 @@ function getIssuesForEpics2025() {
       }
     };
 
-    const url = `${searchUrl}?jql=${encodeURIComponent(jqlQuery)}&maxResults=1000&fields=summary,key,status,resolutiondate`;
+    // Fetch fields: summary, key, status, resolutiondate, customfield_10016 (story points), 
+    // customfield_10020 (sprint), parent (epic)
+    const fields = "summary,key,status,resolutiondate,customfield_10016,customfield_10020,parent";
+    const url = `${searchUrl}?jql=${encodeURIComponent(jqlQuery)}&maxResults=1000&fields=${fields}`;
     
     try {
       const response = UrlFetchApp.fetch(url, options);
@@ -157,14 +182,34 @@ function getIssuesForEpics2025() {
 
       // Write each issue to the sheet
       issues.forEach(issue => {
+        // Extract story points (customfield_10016)
+        const storyPoints = issue.fields.customfield_10016 || "";
+        
+        // Extract sprint (customfield_10020 is usually an array)
+        let sprintName = "";
+        if (issue.fields.customfield_10020 && issue.fields.customfield_10020.length > 0) {
+          // Get the last sprint (most recent)
+          const lastSprint = issue.fields.customfield_10020[issue.fields.customfield_10020.length - 1];
+          sprintName = lastSprint.name || "";
+        }
+        
+        // A-ID, B-Name, C-Epic, D-Epic Key, E-Points, F-Done Date, G-Sprint, H-Type
         issuesSheet.appendRow([
-          issue.key,
-          `${JIRA_DOMAIN}/browse/${issue.key}`,
-          epicKey,
-          issue.fields.summary,
-          issue.fields.status.name,
-          issue.fields.resolutiondate || ""
+          issue.key,                                    // A - ID
+          issue.fields.summary,                         // B - Name
+          epicName,                                     // C - Epic
+          epicKey,                                      // D - Epic Key
+          storyPoints,                                  // E - Points
+          issue.fields.resolutiondate || "",            // F - Done Date
+          sprintName,                                   // G - Sprint
+          ""                                            // H - Type (will be filled with formula)
         ]);
+        
+        // Add VLOOKUP formula for Type column (column H, row = rowNumber)
+        const typeFormula = `=VLOOKUP(D${rowNumber},Epics!C:I,7,FALSE)`;
+        issuesSheet.getRange(rowNumber, 8).setFormula(typeFormula);
+        
+        rowNumber++;
         totalIssues++;
       });
     } catch (error) {
