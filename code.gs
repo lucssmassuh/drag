@@ -1,15 +1,8 @@
 function getMaestrosEpics2025() {
-  // Load configuration from PropertiesService
-  // Set these using: PropertiesService.getScriptProperties().setProperty('JIRA_DOMAIN', 'https://taxfix.atlassian.net')
-  const props = PropertiesService.getScriptProperties();
-  const JIRA_DOMAIN = props.getProperty('JIRA_DOMAIN') || "https://taxfix.atlassian.net";
-  const EMAIL = props.getProperty('EMAIL') || "lucas.massuh-external@taxfix.de";
-  const API_TOKEN = props.getProperty('API_TOKEN');
-  
-  if (!API_TOKEN) {
-    SpreadsheetApp.getUi().alert("Error: API_TOKEN not set. Please set it in PropertiesService.");
-    return;
-  }
+
+  const JIRA_DOMAIN = "https://taxfix.atlassian.net";
+  const EMAIL = "lucas.massuh-external@taxfix.de";
+  const API_TOKEN = "KEY"; // <--- add your key
 
   // JQL for done issues in 2025 for project MKS
   const jqlQuery = `
@@ -87,23 +80,4 @@ function getIssue(issueKey, domain, email, token) {
   };
   const response = UrlFetchApp.fetch(url, options);
   return JSON.parse(response.getContentText());
-}
-
-// Setup function - Run this once to configure your Jira credentials
-// Instructions:
-// 1. Open your Google Sheet
-// 2. Go to Extensions > Apps Script
-// 3. Paste this code
-// 4. Update the values below with your actual credentials
-// 5. Run this function once (click Run button or press Ctrl+R)
-// 6. Authorize the script when prompted
-function setupJiraProperties() {
-  const props = PropertiesService.getScriptProperties();
-  
-  // Update these values with your actual credentials
-  props.setProperty('JIRA_DOMAIN', 'https://taxfix.atlassian.net');
-  props.setProperty('EMAIL', 'lucas.massuh-external@taxfix.de');
-  props.setProperty('API_TOKEN', 'YOUR_API_TOKEN_HERE'); // Replace with your actual API token
-  
-  SpreadsheetApp.getUi().alert('Properties set successfully!');
 }
